@@ -1,0 +1,28 @@
+const express = require('express');
+const { 
+  createOrder, 
+  getMyOrders, 
+  getOrderById,
+  getAllOrders,
+  updateOrderStatus,
+  processPayment,   // thêm dòng này
+  cancelOrder
+} = require('../controllers/orderController');
+const { protect, admin } = require('../middleware/authMiddleware');
+
+const router = express.Router();
+
+router.route('/')
+  .post(protect, createOrder)
+  .get(protect, getMyOrders);
+
+router.get('/:id', protect, getOrderById);
+router.post('/:id/pay', protect, processPayment); // thêm route thanh toán
+
+// Admin routes
+router.get('/admin', protect, admin, getAllOrders);
+router.put('/admin/:id', protect, admin, updateOrderStatus);
+
+router.put('/:id/cancel', protect, cancelOrder);
+
+module.exports = router;
