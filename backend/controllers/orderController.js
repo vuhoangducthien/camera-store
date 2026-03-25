@@ -91,10 +91,13 @@ const getAllOrders = async (req, res, next) => {
 // @route   PUT /api/admin/orders/:id
 const updateOrderStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, paymentStatus } = req.body;
     const order = await prisma.order.update({
       where: { id: req.params.id },
-      data: { status }
+      data: {
+        status,
+        ...(paymentStatus ? { paymentStatus } : {})
+      }
     });
     res.json(order);
   } catch (error) {
@@ -121,7 +124,8 @@ const processPayment = async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         paymentStatus: 'PAID',
-        status: 'PROCESSING', // chuyển sang xử lý
+        // Sau khi user thanh toán xong, chuyển sang "Chờ xác nhận" để admin duyệt
+        status: 'PENDING',
       },
     });
     res.json(updatedOrder);
@@ -139,11 +143,37 @@ const cancelOrder = async (req, res, next) => {
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.userId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
-    if (order.status !== 'PENDING') return res.status(400).json({ message: 'Order cannot be cancelled' });
+    // Cho phép hủy ở giai đoạn "Chờ xác nhận" (PENDING) và "Chờ lấy hàng" (PROCESSING)
+    if (!['PENDING', 'PROCESSING'].includes(order.status)) {
+      return res.status(400).json({ message: 'Order cannot be cancelled' });
+    }
 
     const updatedOrder = await prisma.order.update({
       where: { id: req.params.id },
       data: { status: 'CANCELLED' },
+    });
+    res.json(updatedOrder);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Return an order (user)
+// @route   PUT /api/orders/:id/return
+const returnOrder = async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (order.userId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    if (order.status !== 'DELIVERED') return res.status(400).json({ message: 'Order cannot be returned' });
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: req.params.id },
+      // Backend hiện chưa có enum riêng cho "RETURNED" nên trả hàng được map vào CANCELLED
+      data: { status: 'CANCELLED', paymentStatus: 'REFUNDED' },
     });
     res.json(updatedOrder);
   } catch (error) {
@@ -159,4 +189,5 @@ module.exports = {
   updateOrderStatus,
   processPayment, // <-- thêm hàm này
   cancelOrder,
+  returnOrder,
 };

@@ -27,8 +27,16 @@ export default function Orders() {
     PENDING: { label: 'Chờ xác nhận', tab: 'pending' },
     PROCESSING: { label: 'Chờ lấy hàng', tab: 'processing' },
     SHIPPED: { label: 'Chờ giao hàng', tab: 'shipped' },
-    DELIVERED: { label: 'Đánh giá', tab: 'delivered' },
+    DELIVERED: { label: 'Đã giao', tab: 'delivered' },
     CANCELLED: { label: 'Đã hủy', tab: 'cancelled' }
+  };
+
+  const getStatusInfo = (order) => {
+    // Phân biệt "Trả hàng" với "Đã hủy" bằng paymentStatus
+    if (order?.status === 'CANCELLED' && order?.paymentStatus === 'REFUNDED') {
+      return { label: 'Trả hàng', tab: 'returned' };
+    }
+    return statusMap[order?.status] || { label: order?.status || '—', tab: 'all' };
   };
 
   const tabs = [
@@ -36,13 +44,14 @@ export default function Orders() {
     { key: 'pending', label: 'Chờ xác nhận' },
     { key: 'processing', label: 'Chờ lấy hàng' },
     { key: 'shipped', label: 'Chờ giao hàng' },
-    { key: 'delivered', label: 'Đánh giá' },
+    { key: 'delivered', label: 'Đã giao' },
+    { key: 'returned', label: 'Trả hàng' },
     { key: 'cancelled', label: 'Đã hủy' }
   ];
 
   const filteredOrders = activeTab === 'all'
     ? orders
-    : orders.filter(order => statusMap[order.status]?.tab === activeTab);
+    : orders.filter(order => getStatusInfo(order).tab === activeTab);
 
   // Hủy đơn hàng
   const cancelOrder = async (orderId) => {
@@ -53,6 +62,26 @@ export default function Orders() {
       fetchOrders();
     } catch (error) {
       toast.error('Hủy đơn thất bại');
+    }
+  };
+
+  const returnOrder = async (orderId) => {
+    try {
+      await axios.put(`/orders/${orderId}/return`);
+      toast.success('Trả hàng thành công');
+      fetchOrders();
+    } catch (error) {
+      toast.error('Trả hàng thất bại');
+    }
+  };
+
+  const updateOrderByAdmin = async (orderId, status, paymentStatus) => {
+    try {
+      await axios.put(`/orders/admin/${orderId}`, { status, ...(paymentStatus ? { paymentStatus } : {}) });
+      toast.success('Cập nhật trạng thái thành công');
+      fetchOrders();
+    } catch (error) {
+      toast.error('Cập nhật thất bại');
     }
   };
 
@@ -95,7 +124,7 @@ export default function Orders() {
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-red-500">
-                    {statusMap[order.status]?.label || order.status}
+                    {getStatusInfo(order).label}
                   </p>
                   <p className="text-sm text-gray-500">
                     Tổng: {order.total.toLocaleString('vi-VN')} đ
@@ -129,6 +158,32 @@ export default function Orders() {
 
               {/* Nút hành động theo trạng thái */}
               <div className="mt-4 flex justify-end gap-2 border-t pt-3">
+                {user?.role === 'ADMIN' && (
+                  <>
+                    <button
+                      onClick={() => updateOrderByAdmin(order.id, 'DELIVERED')}
+                      disabled={order.status === 'DELIVERED'}
+                      className={`px-4 py-2 rounded hover:bg-yellow-600 text-white ${
+                        order.status === 'DELIVERED'
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-yellow-500'
+                      }`}
+                    >
+                      Đã giao
+                    </button>
+                    <button
+                      onClick={() => updateOrderByAdmin(order.id, 'CANCELLED', 'REFUNDED')}
+                      disabled={order.status === 'CANCELLED' && order.paymentStatus === 'REFUNDED'}
+                      className={`px-4 py-2 rounded hover:bg-red-600 text-white ${
+                        order.status === 'CANCELLED' && order.paymentStatus === 'REFUNDED'
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-red-500'
+                      }`}
+                    >
+                      Trả hàng
+                    </button>
+                  </>
+                )}
                 {/* Nếu đơn hàng đang ở trạng thái PENDING và chưa thanh toán thì hiển thị nút Thanh toán */}
                 {order.status === 'PENDING' && order.paymentStatus === 'PENDING' && (
                   <Link href={`/checkout?orderId=${order.id}`}>
@@ -137,7 +192,7 @@ export default function Orders() {
                     </button>
                   </Link>
                 )}
-                {order.status === 'PENDING' && (
+                {(order.status === 'PENDING' || order.status === 'PROCESSING') && (
                   <button
                     onClick={() => cancelOrder(order.id)}
                     className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
@@ -148,6 +203,15 @@ export default function Orders() {
                 {order.status === 'DELIVERED' && (
                   <button className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
                     Đánh giá
+                  </button>
+                )}
+
+                {order.status === 'DELIVERED' && user?.role !== 'ADMIN' && (
+                  <button
+                    onClick={() => returnOrder(order.id)}
+                    className="px-4 py-2 border border-red-500 text-red-600 rounded hover:bg-red-50"
+                  >
+                    Trả hàng
                   </button>
                 )}
                 <Link href={`/orders/${order.id}`}>

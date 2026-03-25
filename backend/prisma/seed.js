@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Always keep a known admin account for local development.
-  const adminEmail = 'admin@admin.vn';
+  const adminEmail = 'admin@camera.vn';
   const hashedPassword = await bcrypt.hash('123', 10);
   const existingAdmin = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
 

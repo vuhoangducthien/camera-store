@@ -6,7 +6,8 @@ const {
   getAllOrders,
   updateOrderStatus,
   processPayment,   // thêm dòng này
-  cancelOrder
+  cancelOrder,
+  returnOrder
 } = require('../controllers/orderController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -24,5 +25,6 @@ router.get('/admin', protect, admin, getAllOrders);
 router.put('/admin/:id', protect, admin, updateOrderStatus);
 
 router.put('/:id/cancel', protect, cancelOrder);
+router.put('/:id/return', protect, returnOrder);
 
 module.exports = router;
