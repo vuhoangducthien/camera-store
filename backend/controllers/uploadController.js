@@ -2,12 +2,16 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 
-// Cấu hình Cloudinary (lấy từ env)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// Cấu hình Cloudinary (lấy từ env hoặc URL)
+if (process.env.CLOUDINARY_URL) {
+  // Cloudinary tự động cấu hình khi có CLOUDINARY_URL
+} else {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 // Dùng multer với memory storage
 const storage = multer.memoryStorage();

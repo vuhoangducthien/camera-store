@@ -1,39 +1,37 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const rentalService = require('../services/rentalService');
 
 // @desc    Create a rental request
 // @route   POST /api/rentals
 const createRental = async (req, res, next) => {
   try {
-    const { items, startDate, endDate } = req.body; // items: [{ productId, quantity }]
-    // Validate products
-    const productIds = items.map(i => i.productId);
-    const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
-    if (products.length !== productIds.length) {
-      return res.status(400).json({ message: 'Some products not found' });
-    }
+    const { items, product_id, productId, start_date, startDate, end_date, endDate, quantity } = req.body;
 
-    let total = 0;
-    const rentalItemsData = [];
-    for (const item of items) {
-      const product = products.find(p => p.id === item.productId);
-      const price = product.rentalPrice || 0;
-      total += price * item.quantity;
-      rentalItemsData.push({
-        productId: item.productId,
-        quantity: item.quantity,
-        price
-      });
-    }
+    const singleProductId = productId || product_id;
+    const start = startDate || start_date;
+    const end = endDate || end_date;
 
-    const rental = await prisma.rental.create({
-      data: {
+    if (singleProductId) {
+      const rental = await rentalService.createRental({
         userId: req.user.id,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        total,
-        items: { create: rentalItemsData }
-      }
+        productId: singleProductId,
+        quantity: quantity || 1,
+        startDate: start,
+        endDate: end,
+      });
+      return res.status(201).json(rental);
+    }
+
+    if (!Array.isArray(items) || items.length !== 1) {
+      return res.status(400).json({ message: 'Chỉ hỗ trợ tạo đơn thuê cho 1 sản phẩm mỗi lần' });
+    }
+
+    const first = items[0];
+    const rental = await rentalService.createRental({
+      userId: req.user.id,
+      productId: first.productId || first.product_id,
+      quantity: first.quantity || 1,
+      startDate: start,
+      endDate: end,
     });
 
     res.status(201).json(rental);
@@ -46,24 +44,45 @@ const createRental = async (req, res, next) => {
 // @route   GET /api/rentals
 const getMyRentals = async (req, res, next) => {
   try {
-    const rentals = await prisma.rental.findMany({
-      where: { userId: req.user.id },
-      include: { items: { include: { product: true } } },
-      orderBy: { createdAt: 'desc' }
-    });
+    const rentals = await rentalService.getMyRentals(req.user.id);
     res.json(rentals);
   } catch (error) {
     next(error);
   }
 };
 
+// @desc    Get rental by id (user/admin)
+// @route   GET /api/rentals/:id
+const getRentalById = async (req, res, next) => {
+  try {
+    const rental = await rentalService.getRentalById({
+      rentalId: req.params.id,
+      userId: req.user.id,
+      isAdmin: req.user.role === 'ADMIN',
+    });
+    res.json(rental);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get rentals booked ranges by product (calendar)
+// @route   GET /api/rentals/product/:product_id
+const getProductBookings = async (req, res, next) => {
+  try {
+    const productId = req.params.product_id || req.params.productId;
+    const data = await rentalService.getBookedRangesByProduct(productId);
+    res.json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get all rentals (admin)
+// @route   GET /api/rentals/admin
 const getAllRentals = async (req, res, next) => {
   try {
-    const rentals = await prisma.rental.findMany({
-      include: { user: true, items: { include: { product: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const rentals = await rentalService.adminGetAllRentals();
     res.json(rentals);
   } catch (error) {
     next(error);
@@ -71,12 +90,31 @@ const getAllRentals = async (req, res, next) => {
 };
 
 // @desc    Update rental status (admin)
+// @route   PUT /api/rentals/:id
 const updateRentalStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
-    const rental = await prisma.rental.update({
-      where: { id: req.params.id },
-      data: { status },
+    const rental = await rentalService.adminUpdateRentalStatus({
+      rentalId: req.params.id,
+      status,
+    });
+    res.json(rental);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Process payment for a rental (deposit/full)
+// @route   POST /api/rentals/:id/pay
+const processRentalPayment = async (req, res, next) => {
+  try {
+    const { paymentMethod, paymentType } = req.body || {};
+    const rental = await rentalService.payRental({
+      rentalId: req.params.id,
+      userId: req.user.id,
+      isAdmin: req.user.role === 'ADMIN',
+      paymentMethod,
+      paymentType,
     });
     res.json(rental);
   } catch (error) {
@@ -86,4 +124,4 @@ const updateRentalStatus = async (req, res, next) => {
 
 // Admin: update rental status (optional)
 
-module.exports = { createRental, getMyRentals };
+module.exports = { createRental, getMyRentals, getRentalById, getProductBookings, getAllRentals, updateRentalStatus, processRentalPayment };

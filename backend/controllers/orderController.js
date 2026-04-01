@@ -37,13 +37,55 @@ const createOrder = async (req, res, next) => {
   }
 };
 
+// @desc    Create a new order directly from product (Buy now)
+// @route   POST /api/orders/direct
+const createDirectOrder = async (req, res, next) => {
+  try {
+    const { productId, quantity } = req.body;
+    const qty = Number(quantity);
+
+    if (!productId) return res.status(400).json({ message: 'productId is required' });
+    if (!Number.isFinite(qty) || qty < 1) return res.status(400).json({ message: 'quantity is invalid' });
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+    if (product.stock <= 0) return res.status(400).json({ message: 'Product out of stock' });
+
+    const safeQty = Math.min(qty, product.stock);
+    const total = product.price * safeQty;
+
+    const order = await prisma.order.create({
+      data: {
+        userId: req.user.id,
+        total,
+        items: {
+          create: [
+            {
+              productId: product.id,
+              quantity: safeQty,
+              price: product.price,
+            },
+          ],
+        },
+      },
+    });
+
+    res.status(201).json(order);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get current user's orders
 // @route   GET /api/orders
 const getMyOrders = async (req, res, next) => {
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.user.id },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: { include: { images: true } } } } },
       orderBy: { createdAt: 'desc' }
     });
     res.json(orders);
@@ -58,7 +100,7 @@ const getOrderById = async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
-      include: { items: { include: { product: true } }, user: true }
+      include: { items: { include: { product: { include: { images: true } } } }, user: true, payment: true }
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
@@ -78,7 +120,7 @@ const getOrderById = async (req, res, next) => {
 const getAllOrders = async (req, res, next) => {
   try {
     const orders = await prisma.order.findMany({
-      include: { user: true, items: { include: { product: true } } },
+      include: { user: true, items: { include: { product: { include: { images: true } } } }, payment: true },
       orderBy: { createdAt: 'desc' }
     });
     res.json(orders);
@@ -109,6 +151,7 @@ const updateOrderStatus = async (req, res, next) => {
 // @route   POST /api/orders/:id/pay
 const processPayment = async (req, res, next) => {
   try {
+    const { paymentMethod } = req.body;
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
     });
@@ -119,14 +162,23 @@ const processPayment = async (req, res, next) => {
     if (order.paymentStatus === 'PAID') {
       return res.status(400).json({ message: 'Order already paid' });
     }
-    // Giả lập thanh toán thành công
+    
+    // Giả lập thanh toán thành công và tạo bản ghi thanh toán
     const updatedOrder = await prisma.order.update({
       where: { id: req.params.id },
       data: {
         paymentStatus: 'PAID',
-        // Sau khi user thanh toán xong, chuyển sang "Chờ xác nhận" để admin duyệt
         status: 'PENDING',
+        payment: {
+          create: {
+            userId: req.user.id,
+            amount: order.total,
+            status: 'COMPLETED',
+            paymentMethod: paymentMethod || 'cash'
+          }
+        }
       },
+      include: { payment: true }
     });
     res.json(updatedOrder);
   } catch (error) {
@@ -138,11 +190,13 @@ const processPayment = async (req, res, next) => {
 // @route   PUT /api/orders/:id/cancel
 const cancelOrder = async (req, res, next) => {
   try {
+    const { reason } = req.body;
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.userId !== req.user.id) return res.status(403).json({ message: 'Not authorized' });
+    
     // Cho phép hủy ở giai đoạn "Chờ xác nhận" (PENDING) và "Chờ lấy hàng" (PROCESSING)
     if (!['PENDING', 'PROCESSING'].includes(order.status)) {
       return res.status(400).json({ message: 'Order cannot be cancelled' });
@@ -150,7 +204,10 @@ const cancelOrder = async (req, res, next) => {
 
     const updatedOrder = await prisma.order.update({
       where: { id: req.params.id },
-      data: { status: 'CANCELLED' },
+      data: { 
+        status: 'CANCELLED',
+        cancelReason: reason 
+      },
     });
     res.json(updatedOrder);
   } catch (error) {
@@ -162,6 +219,7 @@ const cancelOrder = async (req, res, next) => {
 // @route   PUT /api/orders/:id/return
 const returnOrder = async (req, res, next) => {
   try {
+    const { reason } = req.body;
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
     });
@@ -172,8 +230,11 @@ const returnOrder = async (req, res, next) => {
 
     const updatedOrder = await prisma.order.update({
       where: { id: req.params.id },
-      // Backend hiện chưa có enum riêng cho "RETURNED" nên trả hàng được map vào CANCELLED
-      data: { status: 'CANCELLED', paymentStatus: 'REFUNDED' },
+      data: { 
+        status: 'RETURNED', // Cập nhật trạng thái thành RETURNED thay vì CANCELLED
+        paymentStatus: 'REFUNDED',
+        returnReason: reason
+      },
     });
     res.json(updatedOrder);
   } catch (error) {
@@ -183,6 +244,7 @@ const returnOrder = async (req, res, next) => {
 
 module.exports = {
   createOrder,
+  createDirectOrder,
   getMyOrders,
   getOrderById,
   getAllOrders,

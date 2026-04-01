@@ -1,3 +1,90 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900;
+  }
+}
+
+@layer utilities {
+  .animate-fadeInLeft {
+    animation: fadeInLeft 1s ease-out forwards;
+  }
+  .animate-fadeInRight {
+    animation: fadeInRight 1s ease-out forwards;
+  }
+
+  .auth-animated-bg {
+    background:
+      radial-gradient(1200px circle at 10% 10%, rgba(37, 99, 235, 0.18), transparent 55%),
+      radial-gradient(1000px circle at 90% 20%, rgba(99, 102, 241, 0.16), transparent 55%),
+      radial-gradient(900px circle at 30% 90%, rgba(168, 85, 247, 0.14), transparent 55%),
+      linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(249, 250, 251, 1));
+    background-size: 140% 140%;
+    animation: authGradientShift 16s ease-in-out infinite;
+  }
+
+  .auth-grid {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at 50% 40%, black 0%, transparent 70%);
+  }
+
+  .auth-float-slow {
+    animation: authFloat 10s ease-in-out infinite;
+  }
+
+  .auth-float-medium {
+    animation: authFloat 7s ease-in-out infinite;
+  }
+
+  @keyframes authGradientShift {
+    0% {
+      background-position: 0% 0%, 100% 20%, 15% 90%, 0% 0%;
+    }
+    50% {
+      background-position: 20% 10%, 70% 0%, 0% 70%, 0% 0%;
+    }
+    100% {
+      background-position: 0% 0%, 100% 20%, 15% 90%, 0% 0%;
+    }
+  }
+
+  @keyframes authFloat {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -14px, 0);
+    }
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  
+  @keyframes fadeInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fadeInRight {
+    from {
+      opacity: 0;
+      transform: translateX(50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}

@@ -23,6 +23,9 @@ const registerUser = async (req, res, next) => {
       email: user.email,
       name: user.name,
       role: user.role,
+      phone: user.phone,
+      address: user.address,
+      cccd: user.cccd,
       token: generateToken(user.id)
     });
   } catch (error) {
@@ -42,6 +45,9 @@ const loginUser = async (req, res, next) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        phone: user.phone,
+        address: user.address,
+        cccd: user.cccd,
         token: generateToken(user.id)
       });
     } else {

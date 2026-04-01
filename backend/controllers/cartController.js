@@ -60,4 +60,25 @@ const removeFromCart = async (req, res, next) => {
   }
 };
 
-module.exports = { getCart, addToCart, removeFromCart };
+// @desc    Update item quantity in cart
+// @route   PUT /api/cart/:id
+const updateCartItem = async (req, res, next) => {
+  try {
+    const { quantity } = req.body;
+    const cartItem = await prisma.cartItem.findFirst({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+
+    if (!cartItem) return res.status(404).json({ message: 'Item not found' });
+
+    const updated = await prisma.cartItem.update({
+      where: { id: req.params.id },
+      data: { quantity: parseInt(quantity) }
+    });
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getCart, addToCart, removeFromCart, updateCartItem };

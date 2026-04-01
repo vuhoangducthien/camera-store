@@ -1,6 +1,16 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+function shuffleInPlace(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = array[i];
+    array[i] = array[j];
+    array[j] = tmp;
+  }
+  return array;
+}
+
 // @desc    Get all products (with optional filters)
 // @route   GET /api/products
 const getProducts = async (req, res, next) => {
@@ -16,6 +26,27 @@ const getProducts = async (req, res, next) => {
       include: { images: true }
     });
     res.json(products);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get recommended products for current user
+// @route   POST /api/products/recommend
+const getRecommendations = async (req, res, next) => {
+  try {
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
+    const candidatePool = await prisma.product.findMany({
+      where: history.length ? { id: { notIn: history } } : undefined,
+      include: { images: true },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    });
+
+    shuffleInPlace(candidatePool);
+
+    const products = candidatePool.slice(0, 4);
+    res.json({ products });
   } catch (error) {
     next(error);
   }
@@ -109,6 +140,7 @@ const deleteProduct = async (req, res, next) => {
 
 module.exports = {
   getProducts,
+  getRecommendations,
   getProductById,
   createProduct,
   updateProduct,

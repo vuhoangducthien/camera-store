@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   getProducts,
+  getRecommendations,
   getProductById,
   createProduct,
   updateProduct,
@@ -13,6 +14,8 @@ const router = express.Router();
 router.route('/')
   .get(getProducts)
   .post(protect, admin, createProduct);
+
+router.post('/recommend', protect, getRecommendations);
 
 router.route('/:id')
   .get(getProductById)
