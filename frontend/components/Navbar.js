@@ -17,6 +17,7 @@ export default function Navbar() {
   const navItems = [
     { href: '/', label: 'Trang chủ', auth: 'any' },
     { href: '/products', label: 'Sản phẩm', auth: 'any' },
+    { href: '/tin-tuc', label: 'Tin tức', auth: 'any' },
     { href: '/orders', label: 'Đơn mua', auth: 'user' },
     { href: '/rentals', label: 'Đơn thuê', auth: 'user' },
     { href: '/gioi-thieu', label: 'Giới thiệu', auth: 'any' },
